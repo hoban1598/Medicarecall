@@ -12,7 +12,6 @@ import {
   handleFrontendConnection,
   sendToWebhook,
 } from "./sessionManager";
-import functions from "./functionHandlers";
 
 dotenv.config();
 
@@ -53,11 +52,6 @@ app.all("/twiml", (req, res) => {
 
   const twimlContent = twimlTemplate.replace("{{WS_URL}}", wsUrl.toString());
   res.type("text/xml").send(twimlContent);
-});
-
-// New endpoint to list available tools (schemas)
-app.get("/tools", (req, res) => {
-  res.json(functions.map((f) => f.schema));
 });
 
 let currentCall: WebSocket | null = null;

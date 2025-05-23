@@ -1,5 +1,4 @@
 import { RawData, WebSocket } from "ws";
-import functions from "./functionHandlers";
 
 interface Session {
   twilioConn?: WebSocket;
@@ -15,78 +14,38 @@ interface Session {
   conversationData?: any;
   isConversationComplete?: boolean;
   conversationStep?: number;
+  conversationHistory?: { is_elderly: boolean; conversation: string }[];
 }
 const INITIAL_PROMPT = `
 당신은 고령자를 위한 따뜻하고 친절한 AI 전화 상담원입니다.
 
-지금부터 고령 어르신과 통화하며, 아래 질문을 한국어로 하나씩 순서대로 진행하세요.  
-※ 주의: 어르신은 **항상 한국어로 응답합니다.** 사용자가 어떤 언어로 인사하더라도 반드시 **한국어로 대화**를 진행해주세요.
+**역할**: 고령 어르신과 자연스러운 전화 상담을 진행하세요.
 
-총 3가지 질문을 순차적으로 진행한 뒤, 대화를 마무리하는 인사를 하고, **대화 전체를 정리한 JSON 데이터를 출력**하세요.
+**대화 목표**: 다음 3가지 주제에 대해 자연스럽게 대화하세요
+1. 수면 상태 (어젯밤 잠은 몇시간 정도 주무셨는지)
+2. 기분 상태 (오늘 하루 기분이 어떠신지)  
+3. 건강 상태 (몸 어디 편찮은 곳은 없는지)
 
----
+**대화 스타일**:
+- 매번 어르신의 답변에 먼저 공감하고 적절히 반응하세요
+- 그 다음에 자연스럽게 다음 질문으로 이어가세요
+- 건강 문제가 있으면 간단한 조언을 해주세요
+- 따뜻하고 친근한 톤으로 대화하세요
 
-### 📞 [대화 흐름]
+**대화 예시**:
+AI: "안녕하세요, 어르신! 오늘 간단한 안부 인사를 드리려고 전화드렸어요."
+어르신: "네 안녕하세요"
+AI: "어르신 어젯밤 잠은 몇시간 정도 주무셨어요?"
+어르신: "음 7시간정도 잤네요"
+AI: "아 7시간정도 잘 주무셨군요! 충분히 주무신 것 같아서 다행이네요. 그럼 오늘 하루 기분은 어떠셨어요?"
+어르신: "오늘 기분이 좋았어요"
+AI: "기분 좋으시다니 정말 다행이에요! 좋은 일이 있으셨나봐요. 그런데 혹시 몸 어디 편찮으신 데는 없으세요?"
+어르신: "무릎이 좀 아파요"
+AI: "아 무릎이 아프시는군요. 날씨가 추워져서 그럴 수도 있어요. 따뜻하게 찜질해주시고 무리하지 마세요. 네 알겠습니다 내일또 연락드릴게요 좋은하루 보내세요!"
 
-1. **전화 시작 인사**  
-   "안녕하세요, 어르신! 오늘 간단한 안부 인사를 드리려고 전화드렸어요. 잠깐만 시간 내주실 수 있으실까요?"
+**중요**: 어르신의 모든 응답을 주의깊게 듣고, 공감하며, 자연스럽게 대화를 이어가세요. 3가지 주제를 모두 다룬 후 따뜻하게 마무리하세요.
 
-2. **질문 1 – 수면 상태**  
-   "어르신, 어젯밤 잠은 좀 잘 주무셨어요? 몇 시간 정도 주무셨을까요?"
-
-3. **질문 2 – 오늘 기분 상태**  
-   "오늘 하루 기분은 어떠셨어요? 기분 좋은 일이나 속상한 일은 없으셨어요?"
-
-4. **질문 3 – 건강 이상 유무**  
-   "몸 어디 편찮으신 데는 없으세요? 감기기운이나 어디 아픈 데는 없으셨어요?"
-
-5. **마무리 인사**  
-   "말씀해주셔서 감사합니다, 어르신. 오늘도 좋은 하루 보내세요!"
-
----
-
-### 🧾 [최종 출력: JSON 형식]
-
-모든 대화가 끝난 후, 아래 형식에 맞춰 어르신의 응답을 분석하고 요약 데이터를 JSON으로 출력하세요:
-### ✅ 예시 결과
-\`\`\`json
-{
-  "mindStatus": "NORMAL",
-  "sleepTimes": 6,
-  "healthStatus": "GOOD",
-  "summary": "오늘은 기분이 보통이고 몸 상태는 괜찮다고 하셨어요.",
-  "content": [
-    {
-      "is_elderly": false,
-      "conversation": "어르신, 어젯밤 잠은 좀 잘 주무셨어요? 몇 시간 정도 주무셨을까요?"
-    },
-    {
-      "is_elderly": true,
-      "conversation": "한 6시간 정도 잤어요. 자다 깨긴 했지만요."
-    },
-    {
-      "is_elderly": false,
-      "conversation": "오늘 하루 기분은 어떠셨어요? 기분 좋은 일이나 속상한 일은 없으셨어요?"
-    },
-    {
-      "is_elderly": true,
-      "conversation": "기분은 그냥 그랬어요. 뭐 큰 일은 없었어요."
-    },
-    {
-      "is_elderly": false,
-      "conversation": "몸 어디 편찮으신 데는 없으세요? 감기기운이나 어디 아픈 데는 없으셨어요?"
-    },
-    {
-      "is_elderly": true,
-      "conversation": "괜찮아요. 요즘은 별로 안 아파요."
-    },
-    {
-      "is_elderly": false,
-      "conversation": "말씀해주셔서 감사합니다, 어르신. 오늘도 좋은 하루 보내세요!"
-    }
-  ]
-}
-\`\`\`
+지금 첫 번째 인사를 해주세요.
 `;
 let session: Session = {};
 
@@ -99,22 +58,113 @@ export async function sendToWebhook(data: any) {
     return;
   }
 
+  // conversationHistory 배열을 content 객체로 감싸기
+  const formattedData = {
+    content: data
+  };
+
+  console.log("🌐 Sending to webhook:", webhookUrl);
+  console.log("📦 Webhook data:", JSON.stringify(formattedData, null, 2));
+
   try {
     const response = await fetch(webhookUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(data),
+      body: JSON.stringify(formattedData),
     });
 
     if (response.ok) {
-      console.log('Successfully sent data to webhook:', webhookUrl);
+      console.log('✅ Successfully sent data to webhook:', webhookUrl);
     } else {
-      console.error('Failed to send data to webhook:', response.status, response.statusText);
+      console.error('❌ Failed to send data to webhook:', response.status, response.statusText);
     }
   } catch (error) {
-    console.error('Error sending data to webhook:', error);
+    console.error('❌ Error sending data to webhook:', error);
+  }
+}
+
+// 테스트용 웹훅 전송 함수
+export async function sendTestWebhook(webhookUrl?: string, testData?: any) {
+  const targetUrl = webhookUrl || session.webhookUrl || process.env.WEBHOOK_URL;
+  
+  if (!targetUrl) {
+    console.log("❌ No webhook URL provided for test");
+    return { success: false, error: "No webhook URL configured" };
+  }
+
+  // 기본 테스트 데이터
+  const defaultTestData = [
+    {
+      "is_elderly": false,
+      "conversation": "안녕하세요, 어르신! 오늘 간단한 안부 인사를 드리려고 전화드렸어요."
+    },
+    {
+      "is_elderly": true,
+      "conversation": "네 안녕하세요"
+    },
+    {
+      "is_elderly": false,
+      "conversation": "어르신 어젯밤 잠은 몇시간 정도 주무셨어요?"
+    },
+    {
+      "is_elderly": true,
+      "conversation": "음 7시간정도 잤네요"
+    },
+    {
+      "is_elderly": false,
+      "conversation": "아 7시간정도 잘 주무셨군요! 충분히 주무신 것 같아서 다행이네요. 그럼 오늘 하루 기분은 어떠셨어요?"
+    },
+    {
+      "is_elderly": true,
+      "conversation": "오늘 기분이 좋았어요"
+    },
+    {
+      "is_elderly": false,
+      "conversation": "기분 좋으시다니 정말 다행이에요! 좋은 일이 있으셨나봐요. 그런데 혹시 몸 어디 편찮으신 데는 없으세요?"
+    },
+    {
+      "is_elderly": true,
+      "conversation": "무릎이 좀 아파요"
+    },
+    {
+      "is_elderly": false,
+      "conversation": "아 무릎이 아프시는군요. 날씨가 추워져서 그럴 수도 있어요. 따뜻하게 찜질해주시고 무리하지 마세요. 네 알겠습니다 내일또 연락드릴게요 좋은하루 보내세요!"
+    }
+  ];
+
+  const dataToSend = testData || defaultTestData;
+  
+  // conversationHistory 배열을 content 객체로 감싸기
+  const formattedData = {
+    content: dataToSend,
+    test: true, // 테스트 데이터임을 표시
+    timestamp: new Date().toISOString()
+  };
+
+  console.log("🧪 Sending TEST webhook to:", targetUrl);
+  console.log("📦 Test webhook data:", JSON.stringify(formattedData, null, 2));
+
+  try {
+    const response = await fetch(targetUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(formattedData),
+    });
+
+    if (response.ok) {
+      console.log('✅ Successfully sent TEST data to webhook:', targetUrl);
+      return { success: true, message: "Test webhook sent successfully" };
+    } else {
+      console.error('❌ Failed to send TEST data to webhook:', response.status, response.statusText);
+      return { success: false, error: `HTTP ${response.status}: ${response.statusText}` };
+    }
+  } catch (error) {
+    console.error('❌ Error sending TEST data to webhook:', error);
+    return { success: false, error: (error as Error).message };
   }
 }
 
@@ -170,11 +220,17 @@ export function handleCallConnection(ws: WebSocket, openAIApiKey: string, webhoo
   session.openAIApiKey = openAIApiKey;
   session.webhookUrl = webhookUrl;
   session.conversationStep = 0; // 대화 시작 전
+  
+  // conversationHistory 초기화
+  session.conversationHistory = [];
+  console.log("📞 Call connection established - initialized empty conversationHistory");
 
   ws.on("message", handleTwilioMessage);
   ws.on("error", ws.close);
   ws.on("close", () => {
     console.log("📞 Twilio WebSocket connection closed");
+    console.log("📊 Final conversation history length:", session.conversationHistory?.length || 0);
+    
     cleanupConnection(session.modelConn);
     cleanupConnection(session.twilioConn);
     session.twilioConn = undefined;
@@ -202,39 +258,14 @@ export function handleFrontendConnection(ws: WebSocket) {
   });
 }
 
-async function handleFunctionCall(item: { name: string; arguments: string }) {
-  console.log("Handling function call:", item);
-  const fnDef = functions.find((f) => f.schema.name === item.name);
-  if (!fnDef) {
-    throw new Error(`No handler found for function: ${item.name}`);
-  }
-
-  let args: unknown;
-  try {
-    args = JSON.parse(item.arguments);
-  } catch {
-    return JSON.stringify({
-      error: "Invalid JSON arguments for function call.",
-    });
-  }
-
-  try {
-    console.log("Calling function:", fnDef.schema.name, args);
-    const result = await fnDef.handler(args as any);
-    return result;
-  } catch (err: any) {
-    console.error("Error running function:", err);
-    return JSON.stringify({
-      error: `Error running function ${item.name}: ${err.message}`,
-    });
-  }
-}
-
 function handleTwilioMessage(data: RawData) {
   const msg = parseMessage(data);
   if (!msg) return;
 
-  console.log("📞 Twilio message received:", msg.event);
+  // media 이벤트가 아닌 경우만 로그 출력
+  if (msg.event !== "media") {
+    console.log("📞 Twilio message received:", msg.event);
+  }
 
   switch (msg.event) {
     case "start":
@@ -268,6 +299,34 @@ function handleTwilioMessage(data: RawData) {
 function handleFrontendMessage(data: RawData) {
   const msg = parseMessage(data);
   if (!msg) return;
+
+  // 웹훅 테스트 요청 처리
+  if (msg.type === "webhook.test") {
+    console.log("🧪 Webhook test requested from frontend");
+    
+    sendTestWebhook(msg.webhookUrl, msg.testData)
+      .then(result => {
+        if (session.frontendConn) {
+          jsonSend(session.frontendConn, {
+            type: "webhook.test.result",
+            success: result.success,
+            message: result.message,
+            error: result.error
+          });
+        }
+      })
+      .catch(error => {
+        console.error("❌ Error in webhook test:", error);
+        if (session.frontendConn) {
+          jsonSend(session.frontendConn, {
+            type: "webhook.test.result",
+            success: false,
+            error: (error as Error).message
+          });
+        }
+      });
+    return;
+  }
 
   if (isOpen(session.modelConn)) {
     jsonSend(session.modelConn, msg);
@@ -319,7 +378,30 @@ function tryConnectModel() {
   });
 
   session.modelConn.on("message", (data) => {
-    console.log("📨 OpenAI message received:", data.toString().substring(0, 200) + "...");
+    const dataStr = data.toString();
+    const messageType = JSON.parse(dataStr).type;
+    
+    // 로그에서 제외할 메시지 타입들
+    const excludedTypes = [
+      "response.audio.delta",
+      "input_audio_buffer",
+      "conversation.item.created",
+      "response.created", 
+      "response.done",
+      "rate_limits.updated",
+      "response.output_item.added",
+      "response.output_item.done",
+      "response.content_part.added",
+      "response.audio_transcript.delta",
+      "conversation.item.input_audio_transcription.delta"
+    ];
+    
+    const shouldLog = !excludedTypes.some(type => messageType.includes(type));
+    
+    if (shouldLog) {
+      console.log("📨 OpenAI message received:", messageType, dataStr.substring(0, 200) + "...");
+    }
+    
     handleModelMessage(data);
   });
   
@@ -398,50 +480,51 @@ function handleModelMessage(data: RawData) {
       break;
 
     case "response.output_item.done": {
-      console.log("🔍 response.output_item.done received:", JSON.stringify(event, null, 2));
+      console.log("🔍 DEBUG: response.output_item.done received");
       const { item } = event;
-      if (item.type === "function_call") {
-        handleFunctionCall(item)
-          .then((output) => {
-            if (session.modelConn) {
-              jsonSend(session.modelConn, {
-                type: "conversation.item.create",
-                item: {
-                  type: "function_call_output",
-                  call_id: item.call_id,
-                  output: JSON.stringify(output),
-                },
-              });
-              jsonSend(session.modelConn, { type: "response.create" });
-            }
-          })
-          .catch((err) => {
-            console.error("Error handling function call:", err);
-          });
-      } else if (item.type === "message" && item.role === "assistant") {
-        console.log("🤖 AI message received:", JSON.stringify(item, null, 2));
-        // AI의 텍스트 응답에서 최종 JSON 감지
+      console.log("🔍 DEBUG: item type:", item?.type, "role:", item?.role);
+      
+      if (item.type === "message" && item.role === "assistant") {
+        console.log("🔍 DEBUG: Valid assistant message found");
+        // AI의 실제 응답을 conversationHistory에 저장
         const content = item.content;
+        console.log("🔍 DEBUG: content:", content);
+        
         if (content && Array.isArray(content)) {
+          console.log("🔍 DEBUG: content is array with length:", content.length);
           for (const contentItem of content) {
+            console.log("🔍 DEBUG: contentItem type:", contentItem.type, "has text:", !!contentItem.text, "has transcript:", !!contentItem.transcript);
+            
+            // text 타입이거나 audio 타입의 transcript가 있는 경우 저장
+            let aiResponse = null;
             if (contentItem.type === "text" && contentItem.text) {
-              console.log("📝 AI text content:", contentItem.text);
-              const finalJson = extractFinalJson(contentItem.text);
-              if (finalJson && !session.isConversationComplete) {
-                console.log("✅ Final conversation JSON detected:", finalJson);
-                session.conversationData = finalJson;
-                session.isConversationComplete = true;
-                
-                // 웹훅으로 순수한 대화 결과 JSON만 전송
-                sendToWebhook(finalJson);
-              } else {
-                console.log("❌ No final JSON found or conversation already complete");
-                console.log("   - finalJson:", !!finalJson);
-                console.log("   - isConversationComplete:", session.isConversationComplete);
+              aiResponse = contentItem.text;
+            } else if (contentItem.type === "audio" && contentItem.transcript) {
+              aiResponse = contentItem.transcript;
+            }
+            
+            if (aiResponse) {
+              console.log("🤖 GPT 발화:", aiResponse);
+              
+              // conversationHistory 초기화 체크
+              if (!session.conversationHistory) {
+                session.conversationHistory = [];
               }
+              
+              // AI의 실제 응답을 저장
+              session.conversationHistory.push({
+                is_elderly: false,
+                conversation: aiResponse
+              });
+              
+              console.log(`📊 대화 기록 업데이트 - 총 ${session.conversationHistory.length}개`);
             }
           }
+        } else {
+          console.log("🔍 DEBUG: content is not array or null");
         }
+      } else {
+        console.log("🔍 DEBUG: Not a valid assistant message");
       }
       break;
     }
@@ -449,10 +532,22 @@ function handleModelMessage(data: RawData) {
     case "conversation.item.input_audio_transcription.completed":
       // 사용자 음성 인식 완료 시 로깅
       if (event.transcript) {
-        console.log("👤 User transcript:", event.transcript);
+        console.log("🎤 Audio transcription completed:", event.transcript);
+        console.log("👤 사용자 발화:", event.transcript);
         
-        // 사용자가 응답했을 때 대화를 계속 진행
-        handleUserResponse(event.transcript);
+        // 사용자 응답을 conversationHistory에 저장
+        if (!session.conversationHistory) {
+          session.conversationHistory = [];
+        }
+        
+        session.conversationHistory.push({
+          is_elderly: true,
+          conversation: event.transcript
+        });
+        
+        console.log(`💾 사용자 응답 저장 완료 - 총 대화 ${session.conversationHistory.length}개`);
+      } else {
+        console.log("🔇 Empty transcript received");
       }
       break;
   }
@@ -497,19 +592,22 @@ function closeModel() {
 
 function closeAllConnections() {
   console.log("🔌 Connection closing...");
-  console.log("   - conversationData exists:", !!session.conversationData);
-  console.log("   - isConversationComplete:", session.isConversationComplete);
+  console.log("   - conversationHistory length:", session.conversationHistory?.length || 0);
+  console.log("   - conversationStep:", session.conversationStep);
   console.log("   - webhookUrl:", session.webhookUrl || process.env.WEBHOOK_URL);
   
-  // 통화 종료 시 최종 데이터가 아직 전송되지 않았다면 전송
-  if (session.conversationData && !session.isConversationComplete && (session.webhookUrl || process.env.WEBHOOK_URL)) {
-    console.log("📤 Sending final data on connection close");
-    sendToWebhook(session.conversationData);
+  // 통화 종료 시 conversationHistory가 있으면 웹훅 전송
+  if (session.conversationHistory && session.conversationHistory.length > 0 && (session.webhookUrl || process.env.WEBHOOK_URL)) {
+    console.log("📤 Sending conversation history on connection close");
+    sendToWebhook(session.conversationHistory);
   } else {
     console.log("❌ Not sending webhook on close:");
-    if (!session.conversationData) console.log("   - No conversation data");
-    if (session.isConversationComplete) console.log("   - Conversation already complete");
-    if (!session.webhookUrl && !process.env.WEBHOOK_URL) console.log("   - No webhook URL");
+    if (!session.conversationHistory || session.conversationHistory.length === 0) {
+      console.log("   - No conversation history");
+    }
+    if (!session.webhookUrl && !process.env.WEBHOOK_URL) {
+      console.log("   - No webhook URL");
+    }
   }
 
   if (session.twilioConn) {
@@ -533,6 +631,7 @@ function closeAllConnections() {
   session.conversationData = undefined;
   session.isConversationComplete = undefined;
   session.conversationStep = undefined;
+  session.conversationHistory = undefined;
 }
 
 function cleanupConnection(ws?: WebSocket) {
@@ -549,77 +648,14 @@ function parseMessage(data: RawData): any {
 
 function jsonSend(ws: WebSocket | undefined, obj: unknown) {
   if (!isOpen(ws)) {
-    console.error("❌ Cannot send message, WebSocket not open");
     return;
   }
   
   const message = JSON.stringify(obj);
-  console.log("📡 Sending WebSocket message:", message.substring(0, 150) + "...");
   ws.send(message);
 }
 
 function isOpen(ws?: WebSocket): ws is WebSocket {
   return !!ws && ws.readyState === WebSocket.OPEN;
-}
-
-// 사용자 응답에 따라 대화를 계속 진행하는 함수
-function handleUserResponse(transcript: string) {
-  if (!session.conversationStep) {
-    session.conversationStep = 1; // 첫 번째 질문 후
-  }
-  
-  console.log(`🗣️ User responded at step ${session.conversationStep}:`, transcript);
-  
-  let nextPrompt = "";
-  
-  switch (session.conversationStep) {
-    case 1:
-      // 수면 질문 후 → 기분 질문
-      nextPrompt = "오늘 하루 기분은 어떠셨어요? 기분 좋은 일이나 속상한 일은 없으셨어요?";
-      session.conversationStep = 2;
-      break;
-    case 2:
-      // 기분 질문 후 → 건강 질문
-      nextPrompt = "몸 어디 편찮으신 데는 없으세요? 감기기운이나 어디 아픈 데는 없으셨어요?";
-      session.conversationStep = 3;
-      break;
-    case 3:
-      // 건강 질문 후 → 마무리 및 JSON 생성 요청
-      nextPrompt = `말씀해주셔서 감사합니다, 어르신. 오늘도 좋은 하루 보내세요! 
-
-이제 대화 내용을 다음 JSON 형식으로 정리해서 응답해주세요:
-
-\`\`\`json
-{
-  "mindStatus": "GOOD",
-  "sleepTimes": 7,
-  "healthStatus": "NORMAL", 
-  "summary": "대화 요약",
-  "content": [
-    {"is_elderly": false, "conversation": "AI 첫 질문"},
-    {"is_elderly": true, "conversation": "어르신 첫 응답"},
-    {"is_elderly": false, "conversation": "AI 두 번째 질문"},
-    {"is_elderly": true, "conversation": "어르신 두 번째 응답"},
-    {"is_elderly": false, "conversation": "AI 세 번째 질문"},
-    {"is_elderly": true, "conversation": "어르신 세 번째 응답"},
-    {"is_elderly": false, "conversation": "마무리 인사"}
-  ]
-}
-\`\`\``;
-      session.conversationStep = 4; // 완료 표시
-      break;
-    default:
-      console.log("🏁 Conversation complete, no more prompts needed");
-      return;
-  }
-  
-  if (nextPrompt) {
-    console.log(`📝 Sending next prompt (step ${session.conversationStep}):`, nextPrompt.substring(0, 100) + "...");
-    
-    // 잠시 후에 다음 질문 전송 (AI가 응답을 마칠 시간을 줌)
-    setTimeout(() => {
-      sendUserMessage(nextPrompt);
-    }, 1000);
-  }
 }
 
