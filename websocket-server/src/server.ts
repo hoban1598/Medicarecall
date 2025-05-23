@@ -10,6 +10,7 @@ import cors from "cors";
 import {
   handleCallConnection,
   handleFrontendConnection,
+  sendToWebhook,
 } from "./sessionManager";
 import functions from "./functionHandlers";
 
@@ -18,6 +19,7 @@ dotenv.config();
 const PORT = parseInt(process.env.PORT || "8081", 10);
 const PUBLIC_URL = process.env.PUBLIC_URL || "";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
+const WEBHOOK_URL = process.env.WEBHOOK_URL || "";
 
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID!;
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN!;
@@ -75,7 +77,7 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
   if (type === "call") {
     if (currentCall) currentCall.close();
     currentCall = ws;
-    handleCallConnection(currentCall, OPENAI_API_KEY);
+    handleCallConnection(currentCall, OPENAI_API_KEY, WEBHOOK_URL);
   } else if (type === "logs") {
     if (currentLogs) currentLogs.close();
     currentLogs = ws;
@@ -99,6 +101,46 @@ app.get("/call", async (req, res) => {
   } catch (err) {
     console.error("❌ 전화 실패:", err);
     res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
+// 웹훅 전송 테스트 엔드포인트
+app.get("/test-webhook", async (req, res) => {
+  const testData = {
+    mindStatus: "GOOD",
+    sleepTimes: 7,
+    healthStatus: "NORMAL",
+    summary: "테스트 전송입니다.",
+    content: [
+      {
+        is_elderly: false,
+        conversation: "어르신, 어젯밤 잠은 좀 잘 주무셨어요? 몇 시간 정도 주무셨을까요?"
+      },
+      {
+        is_elderly: true,
+        conversation: "네, 한 6시간 정도 잤어요."
+      },
+      {
+        is_elderly: false,
+        conversation: "이것은 테스트 메시지입니다."
+      }
+    ]
+  };
+
+  try {
+    await sendToWebhook(testData);
+    console.log("✅ 테스트 웹훅 전송 완료");
+    res.json({ 
+      success: true, 
+      message: "웹훅 전송 완료! Webhook.site에서 확인해보세요.",
+      webhookUrl: WEBHOOK_URL 
+    });
+  } catch (error) {
+    console.error("❌ 테스트 웹훅 전송 실패:", error);
+    res.status(500).json({ 
+      success: false, 
+      error: String(error) 
+    });
   }
 });
 
